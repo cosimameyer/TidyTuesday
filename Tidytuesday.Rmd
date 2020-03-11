@@ -403,6 +403,6 @@ plot <- patchwork + plot_annotation(
 
 #ggsave('figures/TidyTuesday_Tuition.png', plot)
 ggsave(filename = "figures/TidyTuesday_Tuition.png",plot,
-       width = 11, height = 8, dpi = 250, units = "in", device='png')
+       width = 12, height = 9, dpi = 250, units = "in", device='png')
 ```
 
