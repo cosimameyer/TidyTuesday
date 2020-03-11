@@ -1,0 +1,393 @@
+---
+title: "TidyTuesday: Does an expensive school pay off?"
+author: "Cosima Meyer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load all packages
+```{r}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load)
+packages <-
+  c(
+   "tidylog",
+   "dplyr",
+   "tidyr",
+   "magrittr",
+   "stringr",
+   "lubridate",
+   "ggplot2",
+   "openintro",
+   "patchwork",
+   "wesanderson"
+   )
+
+install_load(packages)
+
+# Install via 
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+```
+
+# Load the data
+```{r}
+
+tuesdata <- tidytuesdayR::tt_load('2020-03-10')
+tuesdata <- tidytuesdayR::tt_load(2020, week = 11)
+
+# Assign the datasets to objects
+tuition_cost <- tuesdata$tuition_cost #
+tuition_income <- tuesdata$tuition_income #
+diversity_school <- tuesdata$diversity_school #
+historical_tuition <- tuesdata$historical_tuition
+salary_potential <- tuesdata$salary_potential #
+
+# Remove `tuesdata`
+rm(tuesdata)
+```
+
+# Join data
+
+Which datasets do I need?
+- tuition_income
+- salary_potential
+
+```{r}
+# Merge tuition_cost and diversity (as a starting point, code was posted on Github)
+data <-
+  dplyr::left_join(tuition_cost, diversity_school, by = c("name", "state"))
+
+# Merge tuition_income and tuition costs
+tuition_income_red <- tuition_income %>%
+  dplyr::rename(state_code = state) %>%
+  dplyr::group_by(state_code, name) %>%
+  dplyr::summarise(tution = mean(net_cost))
+
+merged <-
+  dplyr::left_join(data, tuition_income_red, by = c("name", "state_code"))
+
+# Then merge it with salary
+# Code a 2 digits state code
+salary_potential %<>%
+  mutate(state_code= openintro::state2abbr(state_name))
+
+# check for missings
+sum(is.na(salary_potential$state_code))
+
+# Some names of the universities differ -- we therefore need to adjust them. Since we will look into the Ivy League schools later, we want to make sure that they match definitely:
+
+# name=="Brown University" 
+## good for "merged"
+## good for "salary"
+
+# name=="Columbia University"
+## good for "merged"
+## not good for "salary"
+salary_potential %<>%
+  mutate(name = ifelse(name=="Columbia University in the City of New York", "Columbia University	", name))
+
+# name=="Cornell University" 
+## good for "merged"
+## good for "salary"
+
+# name=="Dartmouth College" 
+## good for "merged"
+## good for "salary"
+
+# name=="Harvard College" 
+## not good for "merged"
+merged %<>%
+  mutate(name = ifelse(name=="Harvard College", "Harvard University	", name))
+## good for "salary"
+
+# name=="University of Pennsylvania"
+## good for "merged"
+## good for "salary"
+
+# name=="Princeton University" 
+## good for "merged"
+## good for "salary"
+
+# name=="Yale University"
+## good for "merged"
+## good for "salary"
+
+# merge
+merged2 <- dplyr::left_join(merged, salary_potential, by = c("name", "state_code"))
+```
+
+Do some coding before plotting
+```{r}
+# Code Ivy League schools
+merged2 %<>%
+  mutate(
+    ivy_league = ifelse(
+      name == "Brown University" |
+        name == "Columbia University" |
+        name == "Cornell University" |
+        name == "Dartmouth College" |
+        name == "Harvard University" |
+        name == "University of Pennsylvania" |
+        name == "Princeton University" | name == "Yale University",
+      1,
+      0
+    ),
+    ranking = ifelse(rank <= 10 & !is.na(rank), 1, 0)
+  )
+
+
+# Generate short names for map
+merged2 %<>%
+  mutate(name = ifelse(
+    name == "Massachusetts Institute of Technology",
+    "MIT",
+    ifelse(
+      name == "California Institute of Technology",
+      "Caltech",
+      ifelse(
+        name == "Albany College of Pharmacy and Health Sciences",
+        "ACPHS",
+        ifelse(
+          name == "Cooper Union for the Advancement of Science and Art",
+          "The Cooper Union",
+          name
+        )
+      )
+    )
+  ))
+```
+
+
+# Plot the maps
+```{r}
+# Define colors
+pal <- wes_palette(4, name = "Royal1", type = "discrete")
+```
+
+## Plot tuition_costs against early_career_pay
+```{r}
+early_ivy <-
+  merged2 %>%
+  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::summarise(
+    early_career_pay = mean(early_career_pay),
+    tution = mean(tution),
+    ivy_league = max(ivy_league)
+  ) %>% 
+  ggplot(aes(
+    x = tution,
+    y = early_career_pay,
+    col = factor(ivy_league)
+  )) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~ type) + theme_minimal() + theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) +
+  scale_colour_manual(
+    name = "",
+    values = c(pal[1], pal[2]),
+    breaks = c(0, 1),
+    labels = c("No ivy league school", "Ivy league school")
+  ) +
+  labs(x = "Average net costs in USD paid after scholarship/award",
+       y = "Estimated career pay in USD",
+       title = "Early Career") +
+  geom_text(
+    data = subset(merged2, early_career_pay > 80000),
+    aes(tution, early_career_pay, label = name),
+    size = 2.5,
+    hjust = 0,
+    vjust = 0
+  ) +
+  scale_y_continuous(limits = c(0, 160000),
+                     breaks = seq(0, 160000, by = 20000)) +
+  geom_hline(yintercept = 100000, colour = pal[1])
+```
+
+## Plot tuition_costs against mid_career_pay
+```{r}
+mid_ivy <- merged2 %>%
+  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::summarise(
+    mid_career_pay = mean(mid_career_pay),
+    tution = mean(tution),
+    ivy_league = max(ivy_league)
+  ) %>% 
+  ggplot(aes(
+    x = tution,
+    y = mid_career_pay,
+    col = factor(ivy_league)
+  )) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~ type) + theme_minimal() + theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) +
+  scale_colour_manual(
+    name = "",
+    values = c(pal[1], pal[2]),
+    breaks = c(0, 1),
+    labels = c("No ivy league school", "Ivy league school")
+  ) +
+  labs(x = "Average net costs in USD paid after scholarship/award",
+       y = "Estimated career pay in USD",
+       title = "Mid Career") +
+  geom_text(
+    data = subset(merged2, mid_career_pay > 140000),
+    aes(tution, mid_career_pay, label = name),
+    size = 2.5,
+    hjust = 0,
+    vjust = 0
+  ) +
+  scale_y_continuous(limits = c(0, 160000),
+                     breaks = seq(0, 160000, by = 20000)) +
+  geom_hline(yintercept = 100000, colour = pal[1])
+
+```
+
+## Plot early career and ranking 
+```{r}
+early_ranking <- merged2 %>%
+  dplyr::filter(!is.na(tution))  %>%
+  dplyr::filter(!is.na(early_career_pay)) %>%
+  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::summarise(
+    early_career_pay = mean(early_career_pay),
+    tution = mean(tution),
+    ranking = max(ranking)
+  ) %>% 
+  ggplot(aes(
+    x = tution,
+    y = early_career_pay,
+    col = factor(ranking)
+  )) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~ type) + theme_minimal() + theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) +
+  scale_colour_manual(
+    name = "",
+    values = c(pal[1], pal[4]),
+    breaks = c(0, 1),
+    labels = c("Not Top 10 school", "Top 10 school")
+  ) +
+  labs(x = "Average net costs in USD paid after scholarship/award",
+       y = "Estimated career pay in USD",
+       title = "") +
+  geom_text(
+    data = subset(merged2, early_career_pay > 80000),
+    aes(tution, early_career_pay, label = name),
+    size = 2.5,
+    hjust = 0,
+    vjust = 0
+  ) +
+  scale_y_continuous(limits = c(0, 160000),
+                     breaks = seq(0, 160000, by = 20000)) +
+  geom_hline(yintercept = 100000, colour = pal[1])
+```
+
+## Plot mid career and ranking
+```{r}
+mid_ranking <- merged2 %>%
+  dplyr::filter(!is.na(tution))  %>%
+  dplyr::filter(!is.na(mid_career_pay)) %>%
+  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::summarise(
+    mid_career_pay = mean(mid_career_pay),
+    tution = mean(tution),
+    ranking = max(ranking)
+  ) %>% 
+  ggplot(aes(
+    x = tution,
+    y = mid_career_pay,
+    col = factor(ranking)
+  )) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~ type) + theme_minimal() + theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) +
+  scale_colour_manual(
+    name = "",
+    values = c(pal[1], pal[4]),
+    breaks = c(0, 1),
+    labels = c("Not Top 10 school", "Top 10 school")
+  ) +
+  labs(x = "Average net costs in USD paid after scholarship/award",
+       y = "Estimated career pay in USD",
+       title = "") +
+  geom_text(
+    data = subset(
+      merged2,
+      mid_career_pay > 140000 | mid_career_pay > 125000 & ranking == 0
+    ),
+    aes(tution, mid_career_pay, label = name),
+    size = 2.5,
+    hjust = 0,
+    vjust = 0
+  ) +
+  scale_y_continuous(limits = c(0, 160000),
+                     breaks = seq(0, 160000, by = 20000)) +
+  geom_hline(yintercept = 100000, colour = pal[1])
+```
+
+## Combine the plot
+```{r}
+# Remove title, axis, ticks, labels (using this code: https://aosmith.rbind.io/2019/05/13/small-multiples-plot/)
+
+early_ivy <- early_ivy + theme(axis.title.x = element_blank())
+early_ranking <- early_ranking + theme(
+  axis.line.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.title.y = element_blank(),
+  axis.title.x = element_blank()
+)
+
+mid_ranking <- mid_ranking + theme(
+  axis.line.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.title.y = element_blank()
+)
+ 
+# Combine both ivy plots vertically
+ ivy <-
+   (early_ivy  / mid_ivy) + plot_layout(guides = 'collect') &
+   theme(legend.position = 'bottom')
+ 
+# Combine both ranking plots vertically
+ ranking <-
+   (early_ranking / mid_ranking) +  plot_layout(guides = 'collect') &
+   theme(legend.position = 'bottom')
+ 
+# Combine both plots horizontally
+ patchwork <- ivy | ranking
+ 
+# Add some title and caption
+plot <- patchwork + plot_annotation(
+   title = "Does an expensive school pay off?",
+   caption = "#TidyTuesday: College tuition",
+   theme = theme(
+     plot.title = element_text(size = 15),
+     plot.caption = element_text(size = 10)
+   )
+ )
+
+ggsave(plot, "TidyTuesday_Tuition.png")
+```
+
