@@ -159,6 +159,14 @@ merged2 %<>%
       )
     )
   ))
+
+# Define type 
+merged2 %<>%
+  mutate(type_red = ifelse(
+    type == "Private",
+    "Private",
+    ifelse(type == "Public", "Public", NA)
+  ))
 ```
 
 
@@ -172,7 +180,8 @@ pal <- wes_palette(4, name = "Royal1", type = "discrete")
 ```{r}
 early_ivy <-
   merged2 %>%
-  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::filter(!is.na(type_red)) %>% 
+  dplyr::group_by(state_code, name, type_red)  %>%
   dplyr::summarise(
     early_career_pay = mean(early_career_pay),
     tution = mean(tution),
@@ -184,7 +193,9 @@ early_ivy <-
     col = factor(ivy_league)
   )) +
   geom_point(alpha = 0.7) +
-  facet_wrap(~ type) + theme_minimal() + theme(
+  facet_wrap(~ type_red) + 
+  theme_minimal() + 
+  theme(
     panel.border = element_blank(),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -214,7 +225,8 @@ early_ivy <-
 ## Plot tuition_costs against mid_career_pay
 ```{r}
 mid_ivy <- merged2 %>%
-  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::filter(!is.na(type_red)) %>% 
+  dplyr::group_by(state_code, name, type_red)  %>%
   dplyr::summarise(
     mid_career_pay = mean(mid_career_pay),
     tution = mean(tution),
@@ -226,7 +238,7 @@ mid_ivy <- merged2 %>%
     col = factor(ivy_league)
   )) +
   geom_point(alpha = 0.7) +
-  facet_wrap(~ type) + theme_minimal() + theme(
+  facet_wrap(~ type_red) + theme_minimal() + theme(
     panel.border = element_blank(),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -259,7 +271,7 @@ mid_ivy <- merged2 %>%
 early_ranking <- merged2 %>%
   dplyr::filter(!is.na(tution))  %>%
   dplyr::filter(!is.na(early_career_pay)) %>%
-  dplyr::group_by(state_code, name, type)  %>%
+  dplyr::group_by(state_code, name, type_red)  %>%
   dplyr::summarise(
     early_career_pay = mean(early_career_pay),
     tution = mean(tution),
@@ -271,7 +283,7 @@ early_ranking <- merged2 %>%
     col = factor(ranking)
   )) +
   geom_point(alpha = 0.7) +
-  facet_wrap(~ type) + theme_minimal() + theme(
+  facet_wrap(~ type_red) + theme_minimal() + theme(
     panel.border = element_blank(),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -350,6 +362,7 @@ mid_ranking <- merged2 %>%
 # Remove title, axis, ticks, labels (using this code: https://aosmith.rbind.io/2019/05/13/small-multiples-plot/)
 
 early_ivy <- early_ivy + theme(axis.title.x = element_blank())
+
 early_ranking <- early_ranking + theme(
   axis.line.y = element_blank(),
   axis.text.y = element_blank(),
@@ -366,17 +379,17 @@ mid_ranking <- mid_ranking + theme(
 )
  
 # Combine both ivy plots vertically
- ivy <-
+ivy <-
    (early_ivy  / mid_ivy) + plot_layout(guides = 'collect') &
    theme(legend.position = 'bottom')
  
 # Combine both ranking plots vertically
- ranking <-
+ranking <-
    (early_ranking / mid_ranking) +  plot_layout(guides = 'collect') &
    theme(legend.position = 'bottom')
  
 # Combine both plots horizontally
- patchwork <- ivy | ranking
+patchwork <- ivy | ranking
  
 # Add some title and caption
 plot <- patchwork + plot_annotation(
@@ -388,6 +401,8 @@ plot <- patchwork + plot_annotation(
    )
  )
 
-ggsave(plot, "TidyTuesday_Tuition.png")
+#ggsave('figures/TidyTuesday_Tuition.png', plot)
+ggsave(filename = "figures/TidyTuesday_Tuition.png",plot,
+       width = 11, height = 8, dpi = 250, units = "in", device='png')
 ```
 
