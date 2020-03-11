@@ -394,7 +394,7 @@ patchwork <- ivy | ranking
 # Add some title and caption
 plot <- patchwork + plot_annotation(
    title = "Does an expensive school pay off?",
-   caption = "#TidyTuesday: College tuition",
+   caption = "#TidyTuesday: College tuition\n Based on data from TuitionTracker.org\n Visualization: @cosima_meyer",
    theme = theme(
      plot.title = element_text(size = 15),
      plot.caption = element_text(size = 10)
@@ -402,7 +402,14 @@ plot <- patchwork + plot_annotation(
  )
 
 #ggsave('figures/TidyTuesday_Tuition.png', plot)
-ggsave(filename = "figures/TidyTuesday_Tuition.png",plot,
-       width = 12, height = 9, dpi = 250, units = "in", device='png')
+ggsave(
+  filename = "figures/TidyTuesday_Tuition.png",
+  plot,
+  width = 12,
+  height = 9,
+  dpi = 250,
+  units = "in",
+  device = 'png'
+)
 ```
 
