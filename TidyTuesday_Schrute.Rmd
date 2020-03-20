@@ -1,0 +1,317 @@
+---
+title: "TidyTuesday: The Office"
+author: "Cosima Meyer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load all packages
+```{r}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load)
+packages <-
+  c(
+   "tidylog",
+   "dplyr",
+   "tidyr",
+   "magrittr",
+   "schrute",
+   "ggplot2",
+   "genderizeR",
+   "tidytext",
+   "ngram",
+   "SnowballC",
+   "quanteda",
+   "spacyr",
+   "forcats",
+   "wesanderson"
+   )
+
+install_load(packages)
+
+# Install via 
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+```
+
+# Load the data
+```{r}
+tuesdata <- tidytuesdayR::tt_load('2020-03-17')
+tuesdata <- tidytuesdayR::tt_load(2020, week = 12)
+
+# The Office ratings
+office_ratings <- tuesdata$office_ratings
+rm(tuesdata)
+
+# Schrute data
+schrute <- schrute::theoffice
+```
+
+Combine both datasets
+```{r}
+schrute$season <- as.numeric(schrute$season)
+schrute$episode <- as.numeric(schrute$episode)
+
+full_office <- left_join(schrute, office_ratings, by=c("season", "episode"))
+```
+
+# Preprocess text
+```{r}
+# Reduce the dataset
+office_reduced <- full_office %>%
+  select(text, writer, index, season, episode)
+
+# Generate a corpus
+mycorpus <-
+  corpus(office_reduced,
+         docid_field = "index",
+         text_field = "text")
+
+# tokenize
+token <-
+  tokens(
+    mycorpus,
+    remove_numbers = TRUE,
+    remove_punct = TRUE,
+    remove_symbols = TRUE,
+    remove_twitter = TRUE,
+    remove_url = TRUE,
+    remove_hyphens = TRUE,
+    include_docvars = TRUE
+  )
+
+token <- tokens_select(token,
+                       min_nchar = 5)
+
+# dfm
+# define stopwords
+mydfm <- dfm(token,
+             tolower = TRUE,
+             # stem = TRUE,
+             remove = stopwords("english"))
+
+# trim
+mydfm.trim <-
+  dfm_trim(
+    mydfm,
+    min_docfreq = 0.002,
+    # min 2%
+    max_docfreq = 0.90,
+    #  max 90%
+    docfreq_type = "prop"
+  )
+```
+
+Convert the DFM to a data frame
+```{r}
+office_text <- convert(mydfm.trim, to = "data.frame")
+
+# Gather (reshape)
+office_gather <- office_text %>%
+  gather(key = word, value = count, right:tail(colnames(office_text), 1))
+```
+
+Add and code some variables for the plot
+```{r}
+# generate count of episodes by writer
+writer_count <- office_reduced %>%
+  filter(
+    writer == "Mindy Kaling" |
+      writer == "Steve Carell" |
+      writer == "Ricky Gervais;Stephen Merchant;Greg Daniels" |
+      writer == "B.J. Novak"
+  ) %>%
+  count(season, episode, writer) %>%
+  count(writer) %>%
+  rename(episodes_by_writer = n)
+
+# office_reduced %<>%
+#   select(- c(season, episode))
+
+# add writer
+office_gather <- office_gather %>%
+  mutate(index = as.numeric(document)) %>%
+  left_join(office_reduced, by = "index") %>%
+  left_join(writer_count, by = "writer")
+
+# only keep rows if they arewriter
+office_gather <- office_gather %>%
+  filter(count != 0)
+
+
+# get top words
+plot_data <- office_gather %>%
+  filter(
+    writer == "Mindy Kaling" |
+      writer == "Steve Carell" |
+      writer == "Ricky Gervais;Stephen Merchant;Greg Daniels" |
+      writer == "B.J. Novak"
+  ) %>%
+  #  group_by(season, episode, writer) %>%
+  group_by(writer, word) %>%
+  summarise(count_new = sum(count),
+            episodes_by_writer = mean(episodes_by_writer))  %>%
+  # standardize word count
+  mutate(count_standardized = count_new / episodes_by_writer) %>%
+  top_n(10, count_standardized) %>%
+  mutate(highlight = ifelse(word == "michael", 1,
+                            ifelse(
+                              word == "dwight", 2,
+                              ifelse(word == "birthday", 3, 0)
+                            )))
+```
+
+# Plot: What are the favorite words of each writer?
+
+Define colors for the plot (based on the `wesanderson` package)
+```{r}
+pal <- wes_palette(4, name = "Royal1", type = "discrete")
+pal2 <- wes_palette(5, name = "Rushmore1", type = "continuous")
+```
+
+Plot for Mindy Kaling
+```{r}
+mindy <- plot_data %>%
+  filter(writer == "Mindy Kaling") %>%
+  ggplot() +
+  geom_col(aes(
+    x = count_standardized,
+    y = reorder(factor(word), count_standardized),
+    fill = factor(highlight)
+  )) +
+  theme_minimal() +
+  scale_fill_manual(
+    name = "",
+    values = c(pal[1], pal[2], pal[4], pal2[3]),
+    breaks = c(0, 1, 2, 3)
+  ) +
+  theme(
+    title = element_text(size = 8, face = 'bold'),
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +    xlim(0, 20) +
+  labs(title = "Mindy Kaling",
+       x = "Standardized word count", y = "")
+```
+
+Plot for Steve Carell
+```{r}
+steve <- plot_data %>% 
+  filter(writer == "Steve Carell") %>% 
+  ggplot() +
+  geom_col(aes(x = count_standardized, y = reorder(factor(word), count_standardized), fill=factor(highlight))) +
+  theme_minimal() +
+ theme(
+    title =element_text(size=8, face='bold'),
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +  
+  scale_fill_manual(
+    name = "",
+    values = c(pal[1], pal[2], pal[4], pal2[3]),
+    breaks = c(0, 1, 2, 3)
+  ) +
+  xlim(0,20) +
+  labs(title="Steve Carell",
+        x ="", y = "")
+```
+
+Plot for Ricky Gervais, Stephen Merchant, and Greg Daniels
+```{r}
+crew <- plot_data %>%
+  filter(writer == "Ricky Gervais;Stephen Merchant;Greg Daniels") %>%
+  ggplot() +
+  geom_col(aes(
+    x = count_standardized,
+    y = reorder(factor(word), count_standardized),
+    fill = factor(highlight)
+  )) +
+  theme_minimal() +
+  scale_fill_manual(
+    name = "",
+    values = c(pal[1], pal[2], pal[4], pal2[3]),
+    breaks = c(0, 1, 2, 3)
+  ) +
+  theme(
+    title = element_text(size = 8, face = 'bold'),
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +    xlim(0, 20) +
+  labs(title = "Ricky Gervais, Stephen Merchant, \nand Greg Daniels",
+       x = "", y = "")
+```
+
+Plot for Benjamin Novak
+```{r}
+novak <- plot_data %>%
+  filter(writer == "B.J. Novak") %>%
+  ggplot() +
+  geom_col(aes(
+    x = count_standardized,
+    y = reorder(factor(word), count_standardized),
+    fill = factor(highlight)
+  )) +
+  theme_minimal() +
+  scale_fill_manual(
+    name = "",
+    values = c(pal[1], pal[2], pal[4], pal2[3]),
+    breaks = c(0, 1, 2, 3)
+  ) +
+  theme(
+    title = element_text(size = 8, face = 'bold'),
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  xlim(0, 20) +
+  labs(title = "Benjamin Novak",
+       x = "", y = "")
+```
+
+
+```{r}
+# Bring all together
+novak <- novak +
+  theme(axis.line.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+
+crew <- crew +
+  theme(axis.line.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank())
+
+# Plot it together
+plot1 <- (crew + novak + plot_layout(guides = "collect") &
+    theme(legend.position = 'none')) 
+
+plot2 <- (mindy + steve  + plot_layout(guides = "collect") & theme(legend.position = 'none'))
+
+patchwork <- plot1 / plot2
+
+plot <- patchwork + plot_annotation(
+   title = "Every writer has a pet word...",
+   caption = "#TidyTuesday: The Office\n Based on data from the schrute package\n Visualization: @cosima_meyer",
+   theme = theme(
+     plot.title = element_text(size = 15),
+     plot.caption = element_text(size = 7)
+   )
+ )
+
+ggsave(
+  filename = "figures/TidyTuesday_Office.png",
+  plot,
+  width = 12,
+  height = 9,
+  dpi = 250,
+  units = "in",
+  device = 'png'
+)
+```
+

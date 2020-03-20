@@ -40,11 +40,11 @@ tuesdata <- tidytuesdayR::tt_load('2020-03-10')
 tuesdata <- tidytuesdayR::tt_load(2020, week = 11)
 
 # Assign the datasets to objects
-tuition_cost <- tuesdata$tuition_cost #
-tuition_income <- tuesdata$tuition_income #
-diversity_school <- tuesdata$diversity_school #
+tuition_cost <- tuesdata$tuition_cost 
+tuition_income <- tuesdata$tuition_income 
+diversity_school <- tuesdata$diversity_school 
 historical_tuition <- tuesdata$historical_tuition
-salary_potential <- tuesdata$salary_potential #
+salary_potential <- tuesdata$salary_potential
 
 # Remove `tuesdata`
 rm(tuesdata)
@@ -401,7 +401,7 @@ plot <- patchwork + plot_annotation(
    )
  )
 
-#ggsave('figures/TidyTuesday_Tuition.png', plot)
+# Save
 ggsave(
   filename = "figures/TidyTuesday_Tuition.png",
   plot,
