@@ -596,7 +596,7 @@ mycols_fill  &lt;- get_scale_fill(get_pal(colors))</code></pre>
   exit_shrink() +
   ease_aes(&#39;sine-in-out&#39;)
 
-army2 &lt;- animate(army, fps = 5)</code></pre>
+army2 &lt;- animate(army, fps = 5, height=400, width=400)</code></pre>
 </div>
 <div id="navy" class="section level2">
 <h2>Navy</h2>
@@ -632,7 +632,7 @@ army2 &lt;- animate(army, fps = 5)</code></pre>
   exit_shrink() +
   ease_aes(&#39;sine-in-out&#39;)
 
-navy2 &lt;- animate(navy, fps = 5)</code></pre>
+navy2 &lt;- animate(navy, fps = 5, height=400, width=400)</code></pre>
 </div>
 <div id="marines" class="section level2">
 <h2>Marines</h2>
@@ -668,7 +668,7 @@ navy2 &lt;- animate(navy, fps = 5)</code></pre>
   exit_shrink() +
   ease_aes(&#39;sine-in-out&#39;)
 
-marines2 &lt;- animate(marines, fps = 5)</code></pre>
+marines2 &lt;- animate(marines, fps = 5, height=400, width=400)</code></pre>
 </div>
 <div id="air-force" class="section level2">
 <h2>Air Force</h2>
@@ -695,7 +695,7 @@ marines2 &lt;- animate(marines, fps = 5)</code></pre>
         axis.text.x = element_blank()) +
   mycols_fill() +
   labs(caption =
-         &quot;Mild But Serious: Visualizing Traumatic Brain Injuries Data (2006-2014)\n Visualization: @cosima_meyer &amp; @d_hammers&quot;) +
+         &quot;Mild But Serious: Visualizing TBI Data (2006-2014)\n Visualization: @cosima_meyer &amp; @d_hammers&quot;) +
   transition_states(
     states = year,
     transition_length = 2,
@@ -705,7 +705,7 @@ marines2 &lt;- animate(marines, fps = 5)</code></pre>
   exit_shrink() +
   ease_aes(&#39;sine-in-out&#39;)
 
-airforce2 &lt;- animate(airforce, fps = 5)</code></pre>
+airforce2 &lt;- animate(airforce, fps = 5, height=400, width=400)</code></pre>
 </div>
 </div>
 <div id="save-the-plot-as-a-gif" class="section level1">

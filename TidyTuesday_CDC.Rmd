@@ -163,7 +163,7 @@ army <- tbi_military %>%
   exit_shrink() +
   ease_aes('sine-in-out')
 
-army2 <- animate(army, fps = 5)
+army2 <- animate(army, fps = 5, height=400, width=400)
 ```
 
 ## Navy
@@ -200,7 +200,7 @@ navy <- tbi_military %>%
   exit_shrink() +
   ease_aes('sine-in-out')
 
-navy2 <- animate(navy, fps = 5)
+navy2 <- animate(navy, fps = 5, height=400, width=400)
 ```
 
 ## Marines
@@ -237,7 +237,7 @@ marines <- tbi_military %>%
   exit_shrink() +
   ease_aes('sine-in-out')
 
-marines2 <- animate(marines, fps = 5)
+marines2 <- animate(marines, fps = 5, height=400, width=400)
 ```
 
 ## Air Force
@@ -265,7 +265,7 @@ airforce <- tbi_military %>%
         axis.text.x = element_blank()) +
   mycols_fill() +
   labs(caption =
-         "Mild But Serious: Visualizing Traumatic Brain Injuries Data (2006-2014)\n Visualization: @cosima_meyer & @d_hammers") +
+         "Mild But Serious: Visualizing TBI Data (2006-2014)\n Visualization: @cosima_meyer & @d_hammers") +
   transition_states(
     states = year,
     transition_length = 2,
@@ -275,7 +275,7 @@ airforce <- tbi_military %>%
   exit_shrink() +
   ease_aes('sine-in-out')
 
-airforce2 <- animate(airforce, fps = 5)
+airforce2 <- animate(airforce, fps = 5, height=400, width=400)
 ```
 
 # Save the plot as a gif
