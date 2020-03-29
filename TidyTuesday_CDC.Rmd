@@ -1,0 +1,314 @@
+---
+title: "TidyTuesday: CDC"
+output: html_document
+---
+
+# Load all packages
+```{r}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load)
+packages <-
+  c(
+    "tidylog",
+    "dplyr",
+    "tidyr",
+    "magrittr",
+    "stringr",
+    "lubridate",
+    "ggplot2",
+    "openintro",
+    "patchwork",
+    "wesanderson",
+    "gganimate",
+    "forcats",
+    "magick"
+  )
+
+install_load(packages)
+
+# Install via
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+
+# also, install the paletti package from github
+devtools::install_github("edwinth/paletti")
+library(paletti)
+```
+
+# Load the data
+```{r}
+# Get the Data
+tbi_military <-
+  readr::read_csv(
+    'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-24/tbi_military.csv'
+  )
+```
+
+# Theme for plot
+
+For this week, we generated a color-matching theme for the CDC. We based the theme losely on the code by [Statworx](https://www.statworx.com/de/blog/custom-themes-in-ggplot2/).
+```{r}
+theme_new <- function(base_size = 15,
+                      base_family = "",
+                      base_line_size = base_size / 170,
+                      base_rect_size = base_size / 170) {
+  # using the theme_minimal as the baseline theme
+  theme_minimal(
+    base_size = base_size,
+    base_family = base_family,
+    base_line_size = base_line_size
+  ) %+replace%
+    
+    # general theme
+    theme(
+      plot.title = element_text(
+        color = "#E2E6E9",
+        face = "bold",
+        hjust = 0.5
+      ),
+      axis.title = element_text(color = "#E2E6E9",
+                                size = rel(1)),
+      axis.text = element_text(color = "#E2E6E9",
+                               size = rel(1)),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.x = element_blank(),
+      panel.background = element_rect(
+        fill = "#3d3d3d",
+        colour = "#3d3d3d",
+        size = 0.5,
+        linetype = "solid"
+      ),
+      
+      # plot specifics
+      plot.background = element_rect(fill = "#3d3d3d"),
+      panel.grid.major = element_line(linetype = "blank", colour = "#728393"),
+      panel.grid.minor = element_line(linetype = "blank", colour = "#728393"),
+      panel.grid.major.x = element_blank(),
+      
+      # legend elements
+      legend.text = element_text(color = "#E2E6E9", size = rel(1)),
+      legend.title = element_text(
+        color = "#E2E6E9",
+        size = rel(1),
+        hjust = 0
+      ),
+      legend.position = "none",
+      
+      plot.caption = element_text(
+        size = 13,
+        color = "#E2E6E9",
+        hjust = 1
+      ),
+      complete = TRUE
+    )
+}
+
+# We used https://html-color-codes.info/colors-from-image/ to identify the colors of CDCs graphs for TBI data
+colors <- c(
+  purple = "#7030A0",
+  blue = "#2E75B6",
+  green = "#548235",
+  yellow = "#FFC001"
+)
+
+# Using the paletti package, we create our own color palette using the CDC colors
+mycols_fill  <- get_scale_fill(get_pal(colors))
+```
+
+# Generate plots
+We base our plots losely on [this code](https://medium.com/@korkmazarda1/creating-an-animated-bar-plot-in-r-de9200f57506) provided in Medium.
+
+```{r}
+total_army <- tbi_military %>%
+  filter(severity != "Not Classifiable" & service=="Army") %>%
+  group_by(year) %>% 
+  summarise(total_number = sum(diagnosed, na.rm=TRUE)) %>% 
+  ungroup() 
+```
+
+## Army
+```{r}
+army <- tbi_military %>%
+  filter(severity != "Not Classifiable" & service == "Army") %>%
+  left_join(total_army, by = "year") %>%
+  group_by(severity, year) %>%
+  dplyr::mutate(
+    diagnosed_sum = sum(diagnosed, na.rm = TRUE),
+    rel_number = (diagnosed_sum / total_number) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(severity = fct_rev(severity)) %>%
+  ggplot(aes(x = severity, y = rel_number, fill = severity)) +
+  geom_bar(stat = "identity") +
+  labs(title = "\nArmy in {closest_state}") +
+  geom_text(aes(y = rel_number, label = paste(round(rel_number, 2), "%")),
+            hjust = 0,
+            color = "#E2E6E9") +
+  coord_flip() +
+  theme_new() +
+  mycols_fill() +
+  labs(caption =
+         " \n ") +
+  transition_states(
+    states = year,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  enter_fade() +
+  exit_shrink() +
+  ease_aes('sine-in-out')
+
+army2 <- animate(army, fps = 5)
+```
+
+## Navy
+```{r}
+navy <- tbi_military %>%
+  filter(severity != "Not Classifiable" & service == "Navy") %>%
+  left_join(total_army, by = "year") %>%
+  group_by(severity, year) %>%
+  dplyr::mutate(
+    diagnosed_sum = sum(diagnosed, na.rm = TRUE),
+    rel_number = (diagnosed_sum / total_number) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(severity = fct_rev(severity)) %>%
+  ggplot(aes(x = severity, y = rel_number, fill = severity)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Navy in {closest_state}") +
+  geom_text(aes(y = rel_number, label = paste(round(rel_number, 2), "%")),
+            hjust = 0,
+            color = "#E2E6E9") +
+  coord_flip() +
+  theme_new() +
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_blank()) +
+  mycols_fill() +
+  labs(caption =
+         " \n ") +
+  transition_states(
+    states = year,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  enter_fade() +
+  exit_shrink() +
+  ease_aes('sine-in-out')
+
+navy2 <- animate(navy, fps = 5)
+```
+
+## Marines
+```{r}
+marines <- tbi_military %>%
+  filter(severity != "Not Classifiable" & service == "Marines") %>%
+  left_join(total_army, by = "year") %>%
+  group_by(severity, year) %>%
+  dplyr::mutate(
+    diagnosed_sum = sum(diagnosed, na.rm = TRUE),
+    rel_number = (diagnosed_sum / total_number) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(severity = fct_rev(severity)) %>%
+  ggplot(aes(x = severity, y = rel_number, fill = severity)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Marines in {closest_state}") +
+  geom_text(aes(y = rel_number, label = paste(round(rel_number, 2), "%")),
+            hjust = 0,
+            color = "#E2E6E9") +
+  coord_flip() +
+  theme_new() +
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_blank()) +
+  mycols_fill() +
+  labs(caption =
+         " \n ") +
+  transition_states(
+    states = year,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  enter_fade() +
+  exit_shrink() +
+  ease_aes('sine-in-out')
+
+marines2 <- animate(marines, fps = 5)
+```
+
+## Air Force
+```{r}
+airforce <- tbi_military %>%
+  filter(severity != "Not Classifiable" &
+           service == "Air Force") %>%
+  left_join(total_army, by = "year") %>%
+  group_by(severity, year) %>%
+  dplyr::mutate(
+    diagnosed_sum = sum(diagnosed, na.rm = TRUE),
+    rel_number = (diagnosed_sum / total_number) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(severity = fct_rev(severity)) %>%
+  ggplot(aes(x = severity, y = rel_number, fill = severity)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Air Force in {closest_state}") +
+  geom_text(aes(y = rel_number, label = paste(round(rel_number, 2), "%")),
+            hjust = 0,
+            color = "#E2E6E9") +
+  coord_flip() +
+  theme_new() +
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_blank()) +
+  mycols_fill() +
+  labs(caption =
+         "Mild But Serious: Visualizing Traumatic Brain Injuries Data (2006-2014)\n Visualization: @cosima_meyer & @d_hammers") +
+  transition_states(
+    states = year,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  enter_fade() +
+  exit_shrink() +
+  ease_aes('sine-in-out')
+
+airforce2 <- animate(airforce, fps = 5)
+```
+
+# Save the plot as a gif
+To do so, we use the [code provided here](https://github.com/dariyasydykova/opencode/blob/master/animate_ROC.r) by [Dariya Sydykova](https://twitter.com/dariyasydykova).
+```{r}
+# read the first image (frame) of each animation
+a <- image_read(army2[[1]])
+b <- image_read(navy2[[1]])
+c <- image_read(marines2[[1]])
+d <- image_read(airforce2[[1]])
+
+# combine the two images into a single image
+combined1 <- image_append(c(a, b))
+combined2 <- image_append(c(c, d))
+combined <- image_append(c(combined1, combined2))
+new_gif <- c(combined)
+
+for (i in 2:100) {
+  # combine images frame by frame
+  a <- image_read(army2[[i]])
+  b <- image_read(navy2[[i]])
+  c <- image_read(marines2[[i]])
+  d <- image_read(airforce2[[i]])
+  combined1 <- image_append(c(a, b))
+  combined2 <- image_append(c(c, d))
+  combined <- image_append(c(combined1, combined2))
+  new_gif <- c(new_gif, combined)
+}
+
+# make an animation of the combined images
+combined_gif <- image_animate(new_gif)
+
+# save as gif
+image_write(combined_gif, "figures/TidyTuesday_CDC.gif")
+```
+
