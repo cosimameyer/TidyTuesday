@@ -1,0 +1,218 @@
+---
+title: "TidyTuesday: Tour de France"
+output: html_document
+---
+
+# Load all packages
+```{r}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load)
+packages <-
+  c("tidylog",
+    "purrr",
+    "tidyr",
+    "magrittr",
+    "ggplot2",
+    "countrycode",
+    "ggalluvial")
+
+install_load(packages)
+
+# Install via
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+```
+
+# Load the data and clean it
+```{r}
+tuesdata <- tidytuesdayR::tt_load(2020, week = 15)
+
+stage_data <- tuesdata$stage_data
+tdf_stages <- tuesdata$tdf_stages
+tdf_winners <- tuesdata$tdf_winners
+
+rm(tuesdata)
+```
+
+# Set color theme
+The color theme is based on this [code](https://gist.github.com/jslefche/eff85ef06b4705e6efbc).
+```{r}
+theme_black = function(base_size = 12,
+                       base_family = "") {
+  theme_grey(base_size = base_size, base_family = base_family) %+replace%
+    
+    theme(
+      # Specify axis options
+      axis.line = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.x = element_text(
+        size = base_size * 0.8,
+        color = "white",
+        lineheight = 0.9
+      ),
+      # Specify legend options
+      legend.background = element_rect(color = NA, fill = "black"),
+      legend.key = element_rect(color = "white",  fill = "black"),
+      legend.key.size = unit(1.2, "lines"),
+      legend.key.height = NULL,
+      legend.key.width = NULL,
+      legend.text = element_text(size = base_size * 0.8, color = "white"),
+      legend.title = element_text(
+        size = base_size * 0.8,
+        face = "bold",
+        hjust = 0,
+        color = "white"
+      ),
+      legend.position = "right",
+      legend.text.align = NULL,
+      legend.title.align = NULL,
+      legend.direction = "vertical",
+      legend.box = NULL,
+      # Specify panel options
+      panel.background = element_rect(fill = "black", color  =  NA),
+      panel.border = element_rect(fill = NA, color = "black"),
+      panel.grid.major = element_line(color = "black"),
+      panel.grid.minor = element_line(color = "black"),
+      #  plot.spacing = unit(0.5, "lines"),
+      # Specify facetting options
+      strip.background = element_rect(fill = "grey30", color = "grey10"),
+      strip.text.x = element_text(size = base_size * 0.8, color = "white"),
+      strip.text.y = element_text(
+        size = base_size * 0.8,
+        color = "white",
+        angle = -90
+      ),
+      # Specify plot options
+      plot.background = element_rect(color = "black", fill = "black"),
+      plot.title = element_text(size = base_size * 2, color = "white"),
+      plot.subtitle = element_text(size = base_size * 1.5, color = "white"),
+      plot.caption = element_text(
+        size = 9,
+        color = "white",
+        hjust = 1
+      )
+    )
+}
+```
+
+# Prepare the data
+```{r}
+dat <- tdf_stages %>%
+  # Rename some country names
+  dplyr::mutate(Winner_Country = ifelse(
+    Winner_Country == 'c("FRA", "FRA")',
+    "FRA",
+    ifelse(
+      Winner_Country == 'c("BEL", "BEL")',
+      "BEL",
+      ifelse(Winner_Country == 'c("BEL", "GER")', "BEL", Winner_Country)
+    )
+  )) %>%
+  # Filter to include only "plain stage" and "stages with mountains"
+  dplyr::filter(Type == "Plain stage" |
+                  Type == "Stage with mountain(s)" |
+                  Type == "Stage with mountain") %>%
+  # Rename the stages (to make it easier to visualize it later)
+  dplyr::mutate(
+    Type = ifelse(
+      Type == "Stage with mountain" |
+        Type == "Stage with mountain(s)",
+      "Stage with \nmountain(s)",
+      Type
+    )
+  ) %>%
+  dplyr::filter(!is.na(Winner_Country)) %>%
+  dplyr::ungroup() %>%
+  # Generate a dichotomous dummy variable (200 is approximately both the median and the mean distance)
+  dplyr::mutate(distance = ifelse(Distance < 200, "Less than \n200 km", "More than \n200 km")) %>%
+  # Group by Winner_Country, Type, distance
+  dplyr::group_by(Winner_Country, Type, distance) %>%
+  count() %>%
+  # Drop all observations that have fewer than 12 counts
+  dplyr::filter(n > 12) %>%
+  # Rename the country (to make it better readable later)
+  dplyr::mutate(country = countrycode(Winner_Country, "iso3c", "country.name")) %>%
+  dplyr::mutate(country = ifelse(
+    Winner_Country == "NED",
+    "The \nNetherlands",
+    ifelse(Winner_Country == "SUI", "Switzerland", country)
+  ))
+
+```
+
+# Plot it
+```{r}
+plot <- ggplot(dat,
+               aes(
+                 weight = n,
+                 axis1 = Type,
+                 axis2 = distance,
+                 axis3 = country
+               )) +
+  geom_alluvium(
+    aes(fill = Type, color = Type),
+    width = 2 / 12,
+    alpha = 0.7,
+    knot.pos = 0.4
+  ) +
+  geom_stratum(
+    width = 1 / 6,
+    color = "grey",
+    reverse = TRUE,
+    alpha = .8
+  ) +
+  scale_fill_manual(values  = c("white", "#ffff00")) +
+  scale_color_manual(values = c("white", "#ffff00")) +
+  geom_text(stat = "stratum",
+            label.strata = TRUE,
+            size = 3) +
+  theme_black() +
+  labs(title = "Racing up that hill\n",
+       subtitle = "Stage winners by stage type, distance, and nationality (1903-2017)",
+       caption = "#TidyTuesday: Tour de France\n Based on data from the tdf package\n Visualization: @cosima_meyer") +
+  theme(
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank()
+  ) 
+
+ggsave(
+  filename = "figures/TidyTuesday_TdF.png",
+  plot,
+  width = 12,
+  height = 9,
+  dpi = 250,
+  units = "in",
+  device = 'png'
+)
+```
+
+# Bonus plot
+```{r}
+tdf_winners %>%
+  group_by(nationality, age) %>%
+  count() %>%
+  ggplot(aes(x = nationality, y = n, fill = age)) +
+  geom_bar(stat = 'identity') + theme_light() +
+  scale_fill_gradient(name="Age",
+                      low = "#eaec00",
+                      high = 'white',
+                      limits = c(19, 36)) +
+  theme(axis.title.y = element_text(angle = 0)) + coord_polar()  + theme_black() +
+  labs(title = "Tour de France winners \nby age and nationality (1903-2017)") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    text = element_text(size = 10),
+    axis.text.x = element_text(size = 4.7, color = "white"),
+    
+  ) 
+```
