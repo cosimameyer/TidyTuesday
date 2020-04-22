@@ -1,0 +1,135 @@
+---
+title: "TidyTuesday: GDPR"
+author: "Cosima Meyer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load all packages
+```{r}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load) # Check, Install and Load CRAN & USGS GRAN Packages
+packages <-
+  c(
+    "tidylog",
+    "dplyr",
+    "tidyr",
+    "lubridate",
+    "ggplot2",
+    "cartography",
+    "maps"
+  )
+
+install_load(packages)
+
+# Install via
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR) # Access the Weekly TidyTuesday Project Dataset
+
+devtools::install_github("luisdva/annotater")
+library(annotater) # Annotate Package Load Calls 
+
+options(scipen = 999)
+```
+
+# Load the data
+```{r}
+# Get the Data
+gdpr_violations <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-21/gdpr_violations.tsv')
+gdpr_text <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-21/gdpr_text.tsv')
+```
+
+# Prepare the data
+```{r}
+dat <- gdpr_violations %>% 
+  mutate(date = as.Date(date,format="%m/%d/%Y"),
+         year = year(date)) %>% 
+  filter(date>="2018-05-25") %>%
+  group_by(name, year) %>% 
+  dplyr::summarise(total = n(),
+            price_sum = sum(price),
+            price_rel = price_sum/total,
+            price_rel_mio = price_rel/1000000) %>% 
+  rename(region = name) %>% 
+  # only keep those observations >1,000 Euro
+  filter(price_rel_mio > 0.001 | is.na(price_rel_mio))
+
+# Fill NAs where there are no values
+region <- unique(dat$region)
+countries <- rep(region, 3)
+year <- sort(rep(seq(2018, 2020), length(region)))
+countries_full <- data.frame(region, year)
+
+# Merge with dat
+dat2 <- left_join(countries_full, dat, by = c("region", "year"))
+```
+
+# Plot the map
+Based on [this](https://medium.com/@jules.beley/making-a-map-with-eu-data-on-r-erasmus-exchanges-by-country-3f5734dcd4ff) code, I generated a map of Europe with the data.
+```{r}
+world <- map_data("world")
+
+map_data <- inner_join(world, dat2, by = "region")
+
+# generate color palette
+pal <- carto.pal("wine.pal")
+
+# generate world map
+worldmap <- ggplot() + theme(
+  panel.background = element_rect(fill = "lightcyan1",
+                                  color = NA),
+  panel.grid = element_blank(),
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(),
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank()
+)
+
+# get Europe
+europe <- worldmap + coord_fixed(xlim = c(-9, 42.5),
+                                 ylim = c(36, 70.1),
+                                 ratio = 1.5)
+
+plot <- europe + geom_polygon(
+  data = map_data,
+  aes(
+    fill = price_rel_mio,
+    x = long,
+    y = lat,
+    group = group
+  ),
+  color = "grey70"
+) +
+  theme(legend.position = "bottom") +
+  labs(title = "Will there be a flood of lawsuits?",
+       subtitle = "GDPR fines standardized by country since May 25, 2018",
+       caption = "#TidyTuesday: GDPR violations\n Data source: Privacy Affairs\n Visualization: @cosima_meyer")  +
+  scale_fill_gradientn(
+    name = "Fines (in mio. €)",
+    colours = carto.pal(pal1 = 'wine.pal', n1 = 20),
+    guide = guide_legend()
+  ) +
+  facet_wrap( ~ year) 
+```
+
+## Save the plot
+```{r}
+# Save
+ggsave(
+  filename = "figures/TidyTuesday_GDPR.png",
+  plot,
+  width = 10,
+  height = 5,
+  dpi = 250,
+  units = "in",
+  device = 'png'
+)
+```
+
+
+
+
