@@ -1,0 +1,227 @@
+---
+title: "TidyTuesday: Broadway Musical"
+output: html_document
+---
+
+# Load all packages
+```{r, message=FALSE}
+# clear workspace
+rm(list = ls())
+
+# install necessary packages
+library(install.load) # Check, Install and Load CRAN & USGS GRAN Packages
+packages <-
+  c(
+    "tidylog",
+    "purrr",
+    "tidyr",
+    "magrittr",
+    "ggplot2",
+    "countrycode",
+    "lubridate",
+    "igraph",
+    "tidyverse",
+    "ggraph",
+    "tidygraph"
+    )
+
+install_load(packages)
+
+# Install via
+devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR) # Access the Weekly TidyTuesday Project Dataset
+```
+
+# Load the data and clean it
+```{r, message=FALSE}
+grosses <-
+  readr::read_csv(
+    'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-28/grosses.csv'
+  )
+```
+
+```{r, message=FALSE}
+grosses_red <- grosses %>%
+  mutate(month = month(week_ending),
+         year = year(week_ending)) %>%
+  group_by(year, month) %>%
+  summarise(weekly_gross = sum(weekly_gross),
+            pct_capacity = mean(pct_capacity))
+
+grosses_arc <- grosses %>%
+  group_by(show) %>%
+  summarise(
+    weekly_gross = sum(weekly_gross),
+    pct_capacity = mean(pct_capacity),
+    from = as.numeric(min(year(week_ending))),
+    to = as.numeric(max(year(week_ending)))
+  ) %>%
+  select(from, to, show, weekly_gross, pct_capacity)
+
+grosses_arc$id <- as.numeric(rownames(grosses_arc))
+```
+
+# Adjust theme (based on this [code](https://www.datanovia.com/en/blog/ggplot-theme-background-color-and-grids/))
+```{r, message=FALSE}
+theme_plot <- theme(
+  # get rid of panel grids
+  axis.line = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change plot and panel background
+  plot.background = element_rect(fill = "#16161d"),
+  panel.background = element_rect(fill = '#16161d'),
+  # Change legend
+  legend.direction = "horizontal",
+  legend.background = element_rect(fill = "#16161d", color = NA),
+  legend.key = element_rect(color = "#16161d", fill = "#16161d"),
+  legend.text = element_text(color = "white", size=10),
+  legend.title = element_blank(),
+  # Change text
+  plot.caption = element_text(size=5),
+  axis.text = element_text(
+    family = "Helvetica Neue Light",
+    face = "plain",
+    size = 6,
+    color = "white"
+  ),
+  strip.text = element_text(color = "white"),
+  text = element_text(size = 14, color = "white"),
+)
+```
+
+Show longest shows (duration) and the gross they generated
+```{r, message=FALSE}
+# Prepare the data
+grosses_arc <- grosses %>%
+  group_by(show) %>%
+  # Generate ticket price categories
+  dplyr::mutate(ticket = ifelse(
+    avg_ticket_price < 20,
+    1,
+    ifelse(
+      avg_ticket_price >= 20 & avg_ticket_price <= 100,
+      2,
+      ifelse(avg_ticket_price > 100, 3, NA)
+    )
+  )) %>%
+  # Aggregate
+  dplyr::summarise(
+    weight = sum(weekly_gross),
+    pct_capacity = mean(pct_capacity),
+    from = as.integer(min(year(week_ending))),
+    to = as.integer(max(year(week_ending))),
+    duration = to - from,
+    ticket = max(ticket)
+  ) %>%
+  # Filter for duration
+  dplyr::filter(duration > 20) %>%
+  # Select relevant variables
+  dplyr::select(from, to, weight, ticket, duration, show) %>%
+  ungroup() %>%
+  # Generate some relevant variables
+  dplyr::mutate(
+    condition = ifelse(duration < 10, 1, 0),
+    name = ifelse(weight > 322103950, show, "Other shows"),
+    alp = as.integer(ifelse(name == "Other shows", 0.0002, 0.8))
+  )
+```
+
+Convert the data
+```{r, message=FALSE}
+grosses_tidy <- tbl_graph(edges = grosses_arc, directed = TRUE)
+```
+
+Plot the plot
+```{r, message=FALSE}
+plot <- ggraph(grosses_tidy, layout = 'linear', circular = FALSE) +
+  geom_edge_arc2(aes(edge_colour = name), alpha = 0.5) +
+  geom_edge_arc2(aes(
+    width = weight,
+    edge_colour = name,
+    alpha = alp
+  ),  show.legend = FALSE) +
+  scale_edge_colour_manual(
+    breaks = c(
+      "Cats",
+      "Les Miserables",
+      "The Phantom of the Opera",
+      "Chicago",
+      "Miss Saigon",
+      "The Lion King",
+      "Other shows"
+    ),
+    values = c(
+      "Other shows" = "#696969",
+      "Cats" = "#ffec00", # "#018554",
+      "Les Miserables" = "#1a609b", #"#0688d8",
+      "The Phantom of the Opera" = "#cde1f0", #"#3f595c", #"#a01913",
+      "Chicago" = "#bb1822", #"#d88b0a",
+      "Miss Saigon" = "#ff5b2c", #"#e0d929",
+      "The Lion King" = "#018554" #"#345999"
+    ),
+    name = "show"
+  ) +
+  theme(legend.position = 'bottom') +
+  labs(title = "Making It on Broadway",
+       subtitle = "Top-selling and long lasting shows (1985-2020)",
+       caption = "#TidyTuesday: Broadway musicals\n Data source: Playbill\n Visualization: @cosima_meyer") +
+  theme_plot  
+```
+
+## Save the plot
+```{r, message=FALSE}
+# Save
+ggsave(
+  filename = "figures/TidyTuesday_Broadway.png",
+  plot,
+  width = 10,
+  height = 5,
+  dpi = 250,
+  units = "in",
+  device = 'png'
+)
+```
+
+# Bonus: Applying the plot to the theatres
+```{r}
+grosses_circ <- grosses %>%
+  group_by(theatre) %>%
+  mutate(ticket = ifelse(
+    avg_ticket_price < 20,
+    1,
+    ifelse(
+      avg_ticket_price >= 20 & avg_ticket_price <= 100,
+      2,
+      ifelse(avg_ticket_price > 100, 3, NA)
+    )
+  )) %>%
+  summarise(
+    weekly_gross = sum(weekly_gross),
+    pct_capacity = mean(pct_capacity),
+    from = as.integer(min(year(week_ending))),
+    to = as.integer(max(year(week_ending))),
+    duration = to - from,
+    ticket = max(ticket)
+  ) %>%
+  filter(duration > 9) %>%
+  select(from, to, theatre, weekly_gross, ticket, duration) %>%
+  ungroup() 
+
+ggraph(grosses_circ, layout = 'linear', circular = FALSE) +
+  geom_edge_arc(aes(
+    width = weekly_gross,
+    edge_colour = factor(theatre),
+    label = theatre
+  ),
+  alpha = .3) +
+  coord_equal() +
+  theme(legend.position = 'none') 
+  
+```
+
